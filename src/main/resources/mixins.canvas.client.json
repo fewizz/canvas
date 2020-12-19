@@ -5,6 +5,7 @@
   "mixins": [
 	"AccessMultiPhaseParameters",
 	"AccessTexture",
+    "AccessItemRenderer",
 	"MixinBiomeAccess",
 	"MixinBlockModelRenderer",
 	"MixinBlockRenderManager",

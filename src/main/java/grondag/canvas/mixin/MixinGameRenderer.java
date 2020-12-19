@@ -46,6 +46,9 @@ public abstract class MixinGameRenderer implements GameRendererExt {
 	@Shadow protected abstract void bobView(MatrixStack matrixStack, float f);
 	@Shadow private MinecraftClient client;
 
+	@Shadow
+	public abstract Camera getCamera();
+
 	@Inject(method = "renderHand", require = 1, at = @At("RETURN"))
 	private void afterRenderHand(CallbackInfo ci) {
 		if (Configurator.enableBloom) {
@@ -58,11 +61,11 @@ public abstract class MixinGameRenderer implements GameRendererExt {
 	}
 
 	@Inject(method = "getBasicProjectionMatrix", require = 1, at = @At("RETURN"))
-	private void onGetBasicProjectionMatrix(Camera camera, float tickDelta, boolean changingFov, CallbackInfoReturnable<Matrix4f> ci) {
-		((CanvasWorldRenderer) client.worldRenderer).terrainFrustum.updateProjection(camera, tickDelta);
+	private void onGetBasicProjectionMatrix(double d, CallbackInfoReturnable<Matrix4f> cir) {
+		((CanvasWorldRenderer) client.worldRenderer).terrainFrustum.updateProjection(getCamera(), (float) d); //TODO
 	}
 
-	@Inject(method = "getFov", require = 1, at = @At("RETURN"))
+	@Inject(method = "getFov", require = 2, at = @At("RETURN"))
 	private void onGetFov(CallbackInfoReturnable<Double> ci) {
 		((CanvasWorldRenderer) client.worldRenderer).terrainFrustum.setFov(ci.getReturnValueD());
 	}

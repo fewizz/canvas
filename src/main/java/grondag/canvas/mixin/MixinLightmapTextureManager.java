@@ -18,21 +18,22 @@ package grondag.canvas.mixin;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
-import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 
+import net.minecraft.client.texture.NativeImage;
 import net.minecraft.client.render.LightmapTextureManager;
 
 import grondag.canvas.varia.WorldDataManager;
 
 @Mixin(LightmapTextureManager.class)
 public abstract class MixinLightmapTextureManager {
-	@ModifyArg(method = "update", index = 2, at = @At(value = "INVOKE",
+	@Redirect(method = "update(F)V", at = @At(value = "INVOKE",
 			target = "Lnet/minecraft/client/texture/NativeImage;setPixelColor(III)V"))
-	private int onSetPixelRgba(int i, int j, int color) {
-		if (i == 15 && j == 15) {
+	private void onSetPixelRgba(NativeImage nativeImage, int x, int y, int color) {
+		if (x == 15 && y == 15) {
 			WorldDataManager.updateEmissiveColor(color);
 		}
 
-		return color;
+		nativeImage.setPixelColor(x, y, color);
 	}
 }

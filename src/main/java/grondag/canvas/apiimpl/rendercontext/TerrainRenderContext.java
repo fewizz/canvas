@@ -25,11 +25,13 @@ import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockState;
 import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.util.math.MatrixStack;
 import net.minecraft.util.crash.CrashException;
 import net.minecraft.util.crash.CrashReport;
 import net.minecraft.util.crash.CrashReportSection;
 import net.minecraft.util.math.BlockPos;
+import net.minecraft.util.math.Direction;
 
 import net.fabricmc.fabric.api.renderer.v1.model.FabricBakedModel;
 import net.fabricmc.fabric.api.renderer.v1.model.ModelHelper;
@@ -120,7 +122,7 @@ public class TerrainRenderContext extends AbstractBlockRenderContext<FastRenderR
 		} catch (final Throwable var9) {
 			final CrashReport crashReport_1 = CrashReport.create(var9, "Tesselating block in world - Canvas Renderer");
 			final CrashReportSection crashReportElement_1 = crashReport_1.addElement("Block being tesselated");
-			CrashReportSection.addBlockInfo(crashReportElement_1, blockPos, blockState);
+			CrashReportSection.addBlockInfo(crashReportElement_1, MinecraftClient.getInstance().world, blockPos, blockState);
 			throw new CrashException(crashReport_1);
 		}
 	}
@@ -164,7 +166,9 @@ public class TerrainRenderContext extends AbstractBlockRenderContext<FastRenderR
 		if ((cullCompletionFlags & mask) == 0) {
 			cullCompletionFlags |= mask;
 
-			if (Block.shouldDrawSide(blockState, region, blockPos, ModelHelper.faceFromIndex(faceIndex))) {
+			Direction d = ModelHelper.faceFromIndex(faceIndex);
+
+			if (Block.shouldDrawSide(blockState, region, blockPos, d, blockPos.offset(d))) {
 				cullResultFlags |= mask;
 				return true;
 			} else {

@@ -36,7 +36,6 @@ import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.TexturedRenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.client.render.item.ItemModels;
 import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.client.render.model.json.ModelTransformation;
@@ -62,6 +61,7 @@ import grondag.canvas.mixinterface.MinecraftClientExt;
 import grondag.fermion.sc.concurrency.SimpleConcurrentList;
 import grondag.frex.api.material.MaterialFinder;
 import grondag.frex.api.material.MaterialMap;
+import grondag.canvas.mixin.AccessItemRenderer;
 
 public class ItemRenderContext extends AbstractRenderContext implements RenderContext {
 	/**
@@ -190,10 +190,10 @@ public class ItemRenderContext extends AbstractRenderContext implements RenderCo
 			if (isGui && vertexConsumers instanceof CanvasImmediate) {
 				final RenderContextState context = ((CanvasImmediate) vertexConsumers).contextState;
 				context.guiMode(isBlockItem && ((BlockItem) stack.getItem()).getBlock() instanceof AbstractBannerBlock ? GuiMode.GUI_FRONT_LIT : GuiMode.GUI);
-				BuiltinModelItemRenderer.INSTANCE.render(stack, renderMode, matrices, vertexConsumers, light, overlay);
+				((AccessItemRenderer) MinecraftClient.getInstance().getItemRenderer()).getItemRenderer().render(stack, renderMode, matrices, vertexConsumers, light, overlay);
 				context.guiMode(GuiMode.NONE);
 			} else {
-				BuiltinModelItemRenderer.INSTANCE.render(stack, renderMode, matrices, vertexConsumers, light, overlay);
+				((AccessItemRenderer) MinecraftClient.getInstance().getItemRenderer()).getItemRenderer().render(stack, renderMode, matrices, vertexConsumers, light, overlay);
 			}
 		} else {
 			drawTranslucencyDirectToMainTarget = isGui || renderMode.isFirstPerson() || !isBlockItem;

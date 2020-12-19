@@ -14,10 +14,10 @@ repositories {
 		name = "Cotton"
 		url = "https://server.bbkr.space/artifactory/libs-release/"
 	}
-	maven {
+	/*maven {
 		name = "CurseForge"
 		url = "https://minecraft.curseforge.com/api/maven"
-	}
+	}*/
 }
 
 dependencies {
@@ -33,23 +33,23 @@ dependencies {
 	compileOnly "org.apiguardian:apiguardian-api:1.0.0"
 	compileOnly "com.google.code.findbugs:jsr305:3.0.2"
 
-	modImplementation("grondag:frex-${project.mc_tag}:${project.frex_version}.+") { transitive = false }
-	modImplementation("grondag:frex-events-${project.mc_tag}:${project.frex_events_version}.+") { transitive = false }
+	modImplementation("grondag:frex-${project.mc_tag}:${project.frex_version}") { transitive = false }
+	modImplementation("grondag:frex-events-${project.mc_tag}:${project.frex_events_version}") { transitive = false }
 
-	modImplementation("grondag:fermion-${project.mc_tag}:${project.fermion_version}.+") {
+	modImplementation("grondag:fermion-${project.mc_tag}:${project.fermion_version}") {
 		transitive = false
 		exclude(module: "grondag:fermion-simulator")
 		exclude(module: "grondag:fermion-modkeys")
 	}
 
-	modImplementation("grondag:fermion-varia-${project.mc_tag}:${project.fermion_varia_version}.+") { transitive = false }
-	modImplementation("grondag:fermion-orientation-${project.mc_tag}:${project.fermion_orientation_version}.+") { transitive = false }
-	modImplementation("grondag:special-circumstances-${project.mc_tag}:${project.special_circumstances_version}.+") { transitive = false }
+	modImplementation("grondag:fermion-varia-${project.mc_tag}:${project.fermion_varia_version}") { transitive = false }
+	modImplementation("grondag:fermion-orientation-${project.mc_tag}:${project.fermion_orientation_version}") { transitive = false }
+	modImplementation("grondag:special-circumstances-${project.mc_tag}:${project.special_circumstances_version}") { transitive = false }
 
-	modImplementation("grondag:joml-mod:1.4.20") {
+	/*modImplementation("grondag:joml-mod:1.4.20") {
 		exclude group: "grondag"
 		exclude group: "net.fabricmc"
-	}
+	}*/
 
 	modImplementation("io.github.cottonmc:Jankson-Fabric:${jankson_version}") {
 		exclude group: "net.fabricmc.fabric-api"
@@ -75,22 +75,22 @@ dependencies {
 		exclude group: "net.fabricmc.fabric-api"
 	}
 
-	modImplementation("grondag:jmx-${project.mc_tag}:${project.jmx_version}.+") { transitive = false }
+	modImplementation("grondag:jmx-${project.mc_tag}:${project.jmx_version}") { transitive = false }
 
 	if (!(gradle.startParameter.taskNames.contains("publish") || gradle.startParameter.taskNames.contains("publishToMavenLocal"))) {
-		include "grondag:frex-${project.mc_tag}:${project.frex_version}.+"
-		include "grondag:frex-events-${project.mc_tag}:${project.frex_events_version}.+"
-		include "grondag:fermion-${project.mc_tag}:${project.fermion_version}.+"
-		include "grondag:fermion-varia-${project.mc_tag}:${project.fermion_varia_version}.+"
-		include "grondag:fermion-orientation-${project.mc_tag}:${project.fermion_orientation_version}.+"
-		include "grondag:special-circumstances-${project.mc_tag}:${project.special_circumstances_version}.+"
+		include "grondag:frex-${project.mc_tag}:${project.frex_version}"
+		include "grondag:frex-events-${project.mc_tag}:${project.frex_events_version}"
+		include "grondag:fermion-${project.mc_tag}:${project.fermion_version}"
+		include "grondag:fermion-varia-${project.mc_tag}:${project.fermion_varia_version}"
+		include "grondag:fermion-orientation-${project.mc_tag}:${project.fermion_orientation_version}"
+		include "grondag:special-circumstances-${project.mc_tag}:${project.special_circumstances_version}"
 		include "io.github.cottonmc:Jankson-Fabric:${jankson_version}"
 		include "me.shedaniel.cloth:config-2:${clothconfig_version}"
 		include "blue.endless:jankson:1.1.2"
-		include "grondag:jmx-${project.mc_tag}:${project.jmx_version}.+"
+		include "grondag:jmx-${project.mc_tag}:${project.jmx_version}"
 	}
 
-	modImplementation("io.github.ladysnake:Satin:${satin_version}") {
+	/*modImplementation("io.github.ladysnake:Satin:${satin_version}") {
 		transitive = false
-	}
+	}*/
 }

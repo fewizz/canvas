@@ -30,22 +30,13 @@ import it.unimi.dsi.fastutil.objects.ObjectIterator;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
 import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import org.jetbrains.annotations.Nullable;
-import org.lwjgl.opengl.GL21;
 
-import net.minecraft.block.BlockState;
-import net.minecraft.block.entity.BlockEntity;
-import net.minecraft.block.entity.BlockEntityType;
-import net.minecraft.client.MinecraftClient;
-import net.minecraft.client.gl.Framebuffer;
-import net.minecraft.client.gl.ShaderEffect;
-import net.minecraft.client.network.ClientPlayerEntity;
-import net.minecraft.client.options.CloudRenderMode;
-import net.minecraft.client.options.Option;
-import net.minecraft.client.render.BackgroundRenderer;
-import net.minecraft.client.render.BlockBreakingInfo;
 import net.minecraft.client.render.BufferBuilder;
 import net.minecraft.client.render.BufferBuilderStorage;
 import net.minecraft.client.render.Camera;
+import net.minecraft.client.render.WorldRenderer;
+import net.minecraft.client.render.BackgroundRenderer;
+import net.minecraft.client.render.BlockBreakingInfo;
 import net.minecraft.client.render.DiffuseLighting;
 import net.minecraft.client.render.GameRenderer;
 import net.minecraft.client.render.LightmapTextureManager;
@@ -55,11 +46,19 @@ import net.minecraft.client.render.RenderLayer;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
-import net.minecraft.client.render.VertexConsumerProvider.Immediate;
 import net.minecraft.client.render.VertexConsumers;
+import net.minecraft.client.render.VertexFormat;
 import net.minecraft.client.render.VertexFormats;
-import net.minecraft.client.render.WorldRenderer;
-import net.minecraft.client.render.block.entity.BlockEntityRenderDispatcher;
+import net.minecraft.block.BlockState;
+import net.minecraft.block.entity.BlockEntity;
+import net.minecraft.block.entity.BlockEntityType;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.client.gl.Framebuffer;
+import net.minecraft.client.gl.ShaderEffect;
+import net.minecraft.client.network.ClientPlayerEntity;
+import net.minecraft.client.options.CloudRenderMode;
+import net.minecraft.client.options.Option;
+import net.minecraft.client.render.VertexConsumerProvider.Immediate;
 import net.minecraft.client.render.entity.EntityRenderDispatcher;
 import net.minecraft.client.render.model.ModelLoader;
 import net.minecraft.client.util.math.MatrixStack;
@@ -76,7 +75,6 @@ import net.minecraft.util.math.Matrix4f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.profiler.Profiler;
 import net.minecraft.util.registry.Registry;
-import net.minecraft.world.World;
 
 import grondag.canvas.CanvasMod;
 import grondag.canvas.Configurator;
@@ -373,9 +371,10 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		final MinecraftClient mc = wr.canvas_mc();
 		boolean result = wr.canvas_mc().chunkCullingEnabled;
 
-		if (mc.player.isSpectator() && !World.isOutOfBuildLimitVertically(pos.getY()) && world.getBlockState(pos).isOpaqueFullCube(world, pos)) {
-			result = false;
-		}
+		//TODO
+		//if (mc.player.isSpectator() /*&& !World.isOutOfBuildLimitVertically(pos.getY())*/ && world.getBlockState(pos).isOpaqueFullCube(world, pos)) {
+		//	result = false;
+		//}
 
 		return result;
 	}
@@ -397,7 +396,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		final EntityRenderDispatcher entityRenderDispatcher = wr.canvas_entityRenderDispatcher();
 		final boolean advancedTranslucency = wr.canvas_transparencyShader() != null;
 
-		BlockEntityRenderDispatcher.INSTANCE.configure(world, mc.getTextureManager(), mc.textRenderer, camera, mc.crosshairTarget);
+		MinecraftClient.getInstance().method_31975().configure(world, camera, mc.crosshairTarget);
 		entityRenderDispatcher.configure(world, camera, mc.targetedEntity);
 		final Profiler profiler = world.getProfiler();
 		profiler.swap("light_updates");
@@ -854,7 +853,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 
 	private static void renderBlockEntitySafely(BlockEntity blockEntity, float tickDelta, MatrixStack matrixStack, VertexConsumerProvider outputConsumer) {
 		try {
-			BlockEntityRenderDispatcher.INSTANCE.render(blockEntity, tickDelta, matrixStack, outputConsumer);
+			MinecraftClient.getInstance().method_31975().render(blockEntity, tickDelta, matrixStack, outputConsumer);
 		} catch (final Exception e) {
 			if (CAUGHT_BER_ERRORS.add(blockEntity.getType())) {
 				CanvasMod.LOG.warn(String.format("Unhandled exception rendering while rendering BlockEntity %s @ %s.  Stack trace follows. Subsequent errors will be suppressed.",
@@ -904,7 +903,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		final double z = (pos.getZ() & ~0xF) - cameraZ;
 
 		RenderSystem.lineWidth(6.0F);
-		bufferBuilder.begin(GL21.GL_LINES, VertexFormats.POSITION_COLOR);
+		bufferBuilder.begin(VertexFormat.DrawMode.LINES, VertexFormats.POSITION_COLOR);
 		final int regionRange = region.occlusionRange;
 
 		drawOutline(bufferBuilder, x + PackedBox.x0(cb), y + PackedBox.y0(cb), z + PackedBox.z0(cb), x + PackedBox.x1(cb), y + PackedBox.y1(cb), z + PackedBox.z1(cb), 0xFFAAAAAA);
@@ -923,7 +922,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		tessellator.draw();
 		RenderSystem.disableDepthTest();
 		RenderSystem.lineWidth(3.0F);
-		bufferBuilder.begin(GL21.GL_LINES, VertexFormats.POSITION_COLOR);
+		bufferBuilder.begin(VertexFormat.DrawMode.LINES, VertexFormats.POSITION_COLOR);
 
 		drawOutline(bufferBuilder, x + PackedBox.x0(cb), y + PackedBox.y0(cb), z + PackedBox.z0(cb), x + PackedBox.x1(cb), y + PackedBox.y1(cb), z + PackedBox.z1(cb), 0xFFAAAAAA);
 

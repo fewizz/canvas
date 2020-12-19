@@ -20,12 +20,12 @@ import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 
+import net.minecraft.client.MinecraftClient;
 import net.minecraft.block.BlockRenderType;
 import net.minecraft.block.BlockState;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.block.BlockModelRenderer;
 import net.minecraft.client.render.block.BlockRenderManager;
-import net.minecraft.client.render.item.BuiltinModelItemRenderer;
 import net.minecraft.client.render.model.BakedModel;
 import net.minecraft.client.render.model.json.ModelTransformation;
 import net.minecraft.client.util.math.MatrixStack;
@@ -52,7 +52,7 @@ public abstract class MixinBlockRenderManager {
 					EntityBlockRenderContext.get().render(blockModelRenderer, bakedModel, state, matrices, consumers, overlay, light);
 					break;
 				case ENTITYBLOCK_ANIMATED:
-					BuiltinModelItemRenderer.INSTANCE.render(new ItemStack(state.getBlock()), ModelTransformation.Mode.NONE, matrices, consumers, light, overlay);
+					((AccessItemRenderer) MinecraftClient.getInstance().getItemRenderer()).getItemRenderer().render(new ItemStack(state.getBlock()), ModelTransformation.Mode.NONE, matrices, consumers, light, overlay);
 					break;
 				default:
 					break;

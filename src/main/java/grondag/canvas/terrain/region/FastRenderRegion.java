@@ -282,4 +282,14 @@ public class FastRenderRegion extends AbstractRenderRegion implements RenderAtta
 	public int originZ() {
 		return originZ;
 	}
+
+	@Override
+	public int getBottomSectionLimit() {
+		return 0;
+	}
+
+	@Override
+	public int getSectionCount() {
+		return chunks.length;
+	}
 }

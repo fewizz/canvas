@@ -163,7 +163,7 @@ public class CanvasFrameBufferHacks {
 		GlStateManager.framebufferTexture2D(FramebufferInfo.FRAME_BUFFER, FramebufferInfo.COLOR_ATTACHMENT, GL21.GL_TEXTURE_2D, texMainCopy, 0);
 		GlStateManager.bindTexture(mainColor);
 		copy.activate().size(w, h);
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		// select emissive portions for blur
 		GlStateManager.framebufferTexture2D(FramebufferInfo.FRAME_BUFFER, FramebufferInfo.COLOR_ATTACHMENT, GL21.GL_TEXTURE_2D, texEmissiveColor, 0);
@@ -171,7 +171,7 @@ public class CanvasFrameBufferHacks {
 		GlStateManager.enableTexture();
 		GlStateManager.bindTexture(texEmissive);
 		emissiveColor.activate().size(w, h);
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 		GlStateManager.bindTexture(0);
 		GlStateManager.disableTexture();
 		GlStateManager.activeTexture(GL21.GL_TEXTURE0);
@@ -182,7 +182,7 @@ public class CanvasFrameBufferHacks {
 		downsample.activate().distance(1f, 1f).size(w, h).lod(0);
 		setProjection(w, h);
 		RenderSystem.viewport(0, 0, w, h);
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		GlStateManager.bindTexture(texBloomDownsample);
 
@@ -193,7 +193,7 @@ public class CanvasFrameBufferHacks {
 			setProjection(sw, sh);
 			RenderSystem.viewport(0, 0, sw, sh);
 			GlStateManager.framebufferTexture2D(FramebufferInfo.FRAME_BUFFER, FramebufferInfo.COLOR_ATTACHMENT, GL21.GL_TEXTURE_2D, texBloomDownsample, d);
-			GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+			GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 		}
 
 		final float bloomScale = Configurator.bloomScale;
@@ -211,7 +211,7 @@ public class CanvasFrameBufferHacks {
 			setProjection(sw, sh);
 			RenderSystem.viewport(0, 0, sw, sh);
 			GlStateManager.framebufferTexture2D(FramebufferInfo.FRAME_BUFFER, FramebufferInfo.COLOR_ATTACHMENT, GL21.GL_TEXTURE_2D, texBloomUpsample, d);
-			GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+			GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 		}
 
 		// Switch back to MC fbo to draw combined color + bloom
@@ -228,7 +228,7 @@ public class CanvasFrameBufferHacks {
 		GlStateManager.activeTexture(GL21.GL_TEXTURE0);
 		GlStateManager.bindTexture(texMainCopy);
 
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		endCopy();
 	}
@@ -251,7 +251,7 @@ public class CanvasFrameBufferHacks {
 
 		setProjection(w, h);
 		copyLod.activate().size(w, h).lod(0).activate();
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		endCopy();
 	}
@@ -273,7 +273,7 @@ public class CanvasFrameBufferHacks {
 
 		setProjection(w, h);
 		copyLod.activate().size(w, h).lod(level);
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		endCopy();
 	}

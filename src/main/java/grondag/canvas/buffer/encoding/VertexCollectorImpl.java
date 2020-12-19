@@ -21,10 +21,10 @@ import static grondag.canvas.buffer.format.CanvasVertexFormats.MATERIAL_QUAD_STR
 import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import it.unimi.dsi.fastutil.Swapper;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
+import org.lwjgl.opengl.GL11;
 import org.lwjgl.system.MemoryUtil;
 
 import net.minecraft.util.math.MathHelper;
@@ -221,7 +221,7 @@ public class VertexCollectorImpl extends AbstractVertexCollector {
 
 		CanvasVertexFormats.POSITION_COLOR_TEXTURE_MATERIAL_LIGHT_NORMAL.enableDirect(MemoryUtil.memAddress(buffer));
 
-		GlStateManager.drawArrays(materialState.primitive, 0, vertexCount());
+		GL11.glDrawArrays(materialState.primitive, 0, vertexCount());
 
 		TransferBufferAllocator.release(buffer);
 
@@ -260,7 +260,7 @@ public class VertexCollectorImpl extends AbstractVertexCollector {
 			final VertexCollectorImpl collector = drawList.get(i);
 			final int vertexCount = collector.vertexCount();
 			collector.materialState.renderState.enable();
-			GlStateManager.drawArrays(collector.materialState.primitive, startIndex, vertexCount);
+			GL11.glDrawArrays(collector.materialState.primitive, startIndex, vertexCount);
 			startIndex += vertexCount;
 			collector.clear();
 		}

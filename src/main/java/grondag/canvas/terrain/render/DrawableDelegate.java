@@ -18,7 +18,6 @@ package grondag.canvas.terrain.render;
 
 import java.util.concurrent.ArrayBlockingQueue;
 
-import com.mojang.blaze3d.platform.GlStateManager;
 import com.mojang.blaze3d.systems.RenderSystem;
 import org.lwjgl.opengl.GL11;
 
@@ -63,7 +62,7 @@ public class DrawableDelegate {
 	public void draw() {
 		assert !isReleased;
 
-		GlStateManager.drawArrays(GL11.GL_QUADS, vertexOffset, vertexCount);
+		GL11.glDrawArrays(GL11.GL_QUADS, vertexOffset, vertexCount);
 	}
 
 	public void release() {
