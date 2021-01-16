@@ -92,7 +92,7 @@ class ProgramPass extends Pass {
 
 		shader.activate().lod(config.lod).size(width, height);
 
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 	}
 
 	@Override

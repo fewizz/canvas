@@ -16,7 +16,7 @@
 
 package grondag.canvas.terrain.occlusion.geometry;
 
-import net.minecraft.client.util.math.Vector3f;
+import net.minecraft.util.math.Vec3f;
 import net.minecraft.util.math.BlockPos;
 
 import grondag.canvas.mixinterface.Matrix4fExt;
@@ -108,7 +108,7 @@ public class TerrainBounds {
 		}
 	}
 
-	private final Vector3f vec = new Vector3f();
+	private final Vec3f vec = new Vec3f();
 
 	private float minViewX, minViewY, minViewZ, maxViewX, maxViewY, maxViewZ;
 

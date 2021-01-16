@@ -24,7 +24,6 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.GameRenderer;
-import net.minecraft.client.util.math.Vector3f;
 import net.minecraft.client.world.ClientWorld;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.effect.StatusEffects;
@@ -32,6 +31,7 @@ import net.minecraft.fluid.FluidState;
 import net.minecraft.tag.FluidTags;
 import net.minecraft.util.math.BlockPos;
 import net.minecraft.util.math.MathHelper;
+import net.minecraft.util.math.Vec3f;
 import net.minecraft.util.math.Vec3d;
 import net.minecraft.world.LightType;
 import net.minecraft.world.World;
@@ -181,13 +181,13 @@ public class WorldDataManager {
 	static double smoothedRainStrength = 0;
 
 	/** Camera view vector in world space - normalized. */
-	public static final Vector3f cameraVector = new Vector3f();
+	public static final Vec3f cameraVector = new Vec3f();
 	/** Middle of view frustum in camera space - skylight points towards this. */
-	public static final Vector3f frustumCenter = new Vector3f();
+	public static final Vec3f frustumCenter = new Vec3f();
 	/** Points towards the light - normalized. */
-	public static final Vector3f skyLightVector = new Vector3f();
+	public static final Vec3f skyLightVector = new Vec3f();
 	/** Position of the sky light in camera space. Inverse of camera-to-skylight offset. */
-	public static final Vector3f skyLightPosition = new Vector3f();
+	public static final Vec3f skyLightPosition = new Vec3f();
 
 	public static float skyShadowRotationRadiansZ;
 
@@ -512,7 +512,7 @@ public class WorldDataManager {
 		DATA.put(EMISSIVE_COLOR_BLUE, (color & 0xFF) / 255f);
 	}
 
-	private static void putViewVector(int index, float yaw, float pitch, Vector3f storeTo) {
+	private static void putViewVector(int index, float yaw, float pitch, Vec3f storeTo) {
 		final Vec3d vec = Vec3d.fromPolar(pitch, yaw);
 		final float x = (float) vec.x;
 		final float y = (float) vec.y;

@@ -23,7 +23,7 @@ import org.lwjgl.BufferUtils;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.render.Camera;
 import net.minecraft.client.util.math.MatrixStack;
-import net.minecraft.client.util.math.Vector3f;
+import net.minecraft.util.math.Vec3f;
 import net.minecraft.util.math.Matrix3f;
 import net.minecraft.util.math.Matrix4f;
 
@@ -308,8 +308,8 @@ public enum MatrixState {
 	private static final Matrix4f worldShadowView = new Matrix4f();
 	private static final Matrix4fExt worldShadowViewExt = (Matrix4fExt) (Object) worldShadowView;
 
-	private static final Vector3f texelAlignmentPos = new Vector3f();
-	private static final Vector3f boundsPos = new Vector3f();
+	private static final Vec3f texelAlignmentPos = new Vec3f();
+	private static final Vec3f boundsPos = new Vec3f();
 	private static float x0, y0, x1, y1;
 
 	private static final int VIEW = 0;

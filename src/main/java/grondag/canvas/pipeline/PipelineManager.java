@@ -174,7 +174,7 @@ public class PipelineManager {
 		GlStateManager.bindTexture(glId);
 		setProjection(w, h);
 		debugShader.activate().size(w, h).lod(lod);
-		GlStateManager.drawArrays(GL11.GL_QUADS, 0, 4);
+		GL11.glDrawArrays(GL11.GL_QUADS, 0, 4);
 
 		endFullFrameRender();
 	}
