@@ -21,6 +21,7 @@ import java.util.SortedSet;
 
 import it.unimi.dsi.fastutil.longs.Long2ObjectMap;
 import org.spongepowered.asm.mixin.Mixin;
+import org.spongepowered.asm.mixin.Overwrite;
 import org.spongepowered.asm.mixin.Shadow;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
@@ -41,6 +42,7 @@ import net.minecraft.client.render.Camera;
 import net.minecraft.client.render.FpsSmoother;
 import net.minecraft.client.render.Frustum;
 import net.minecraft.client.render.LightmapTextureManager;
+import net.minecraft.client.render.RenderLayers;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
 import net.minecraft.client.render.VertexFormat;
@@ -55,70 +57,47 @@ import net.minecraft.util.math.BlockPos;
 
 import grondag.canvas.CanvasMod;
 import grondag.canvas.mixinterface.WorldRendererExt;
+import grondag.canvas.pipeline.Pipeline;
 import grondag.canvas.render.CanvasWorldRenderer;
+import grondag.canvas.render.FabulousFrameBuffer;
 
 @Mixin(WorldRenderer.class)
 public class MixinWorldRenderer implements WorldRendererExt {
-	private static boolean shouldWarnOnSetupTerrain = true;
-	private static boolean shouldWarnOnRenderLayer = true;
-	private static boolean shouldWarnGetAdjacentChunk = true;
-	private static boolean shouldWarnOnUpdateChunks = true;
-	@Shadow
-	private MinecraftClient client;
-	@Shadow
-	private int renderDistance;
-	@Shadow
-	private ClientWorld world;
-	@Shadow
-	private int frame;
-	@Shadow
-	private boolean cloudsDirty;
-	@Shadow
-	private TextureManager textureManager;
-	@Shadow
-	private EntityRenderDispatcher entityRenderDispatcher;
+	@Shadow private MinecraftClient client;
+	@Shadow private int renderDistance;
+	@Shadow private ClientWorld world;
+	@Shadow private int frame;
+	@Shadow private boolean cloudsDirty;
+	@Shadow private TextureManager textureManager;
+	@Shadow private EntityRenderDispatcher entityRenderDispatcher;
 	// PERF: prevent wasteful allocation of these - they are not all used with Canvas and take a lot of space
-	@Shadow
-	private BufferBuilderStorage bufferBuilders;
-	@Shadow
-	private int regularEntityCount;
-	@Shadow
-	private int blockEntityCount;
-	@Shadow
-	private FpsSmoother chunkUpdateSmoother;
-	@Shadow
-	private Framebuffer entityOutlinesFramebuffer;
-	@Shadow
-	private ShaderEffect entityOutlineShader;
-	@Shadow
-	private Set<BlockEntity> noCullingBlockEntities;
-	@Shadow
-	private Long2ObjectMap<SortedSet<BlockBreakingInfo>> blockBreakingProgressions;
-	@Shadow
-	private VertexFormat vertexFormat;
-	@Shadow
-	private ShaderEffect transparencyShader;
-
-	@Shadow
-	protected boolean canDrawEntityOutlines() {
+	@Shadow private BufferBuilderStorage bufferBuilders;
+	@Shadow private int regularEntityCount;
+	@Shadow private int blockEntityCount;
+	@Shadow private FpsSmoother chunkUpdateSmoother;
+	@Shadow private Framebuffer entityOutlinesFramebuffer;
+	@Shadow private ShaderEffect entityOutlineShader;
+	@Shadow private Set<BlockEntity> noCullingBlockEntities;
+	@Shadow private Long2ObjectMap<SortedSet<BlockBreakingInfo>> blockBreakingProgressions;
+	@Shadow private VertexFormat vertexFormat;
+	@Shadow private Framebuffer translucentFramebuffer;
+	@Shadow private Framebuffer entityFramebuffer;
+	@Shadow private Framebuffer particlesFramebuffer;
+	@Shadow private Framebuffer weatherFramebuffer;
+	@Shadow private Framebuffer cloudsFramebuffer;
+	@Shadow protected boolean canDrawEntityOutlines() {
 		return false;
 	}
 
-	@Shadow
-	private void drawBlockOutline(MatrixStack matrixStack, VertexConsumer vertexConsumer, Entity entity, double d, double e, double f, BlockPos blockPos, BlockState blockState) {
-	}
+	@Shadow private void drawBlockOutline(MatrixStack matrixStack, VertexConsumer vertexConsumer, Entity entity, double d, double e, double f, BlockPos blockPos, BlockState blockState) { }
 
-	@Shadow
-	private void renderWorldBorder(Camera camera) {
-	}
+	@Shadow private void renderWorldBorder(Camera camera) { }
 
-	@Shadow
-	private void renderEntity(Entity entity, double d, double e, double f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider) {
-	}
+	@Shadow private void renderEntity(Entity entity, double d, double e, double f, float g, MatrixStack matrixStack, VertexConsumerProvider vertexConsumerProvider) { }
 
-	@Shadow
-	private void renderWeather(LightmapTextureManager lightmapTextureManager, float f, double d, double e, double g) {
-	}
+	@Shadow private void renderWeather(LightmapTextureManager lightmapTextureManager, float f, double d, double e, double g) { }
+
+	private static boolean shouldWarnOnSetupTerrain = true;
 
 	@Inject(at = @At("HEAD"), method = "setupTerrain", cancellable = true)
 	private void onSetupTerrain(Camera camera, Frustum frustum, boolean bl, int i, boolean bl2, CallbackInfo ci) {
@@ -144,6 +123,8 @@ public class MixinWorldRenderer implements WorldRendererExt {
 		return 0;
 	}
 
+	private static boolean shouldWarnOnRenderLayer = true;
+
 	@Inject(at = @At("HEAD"), method = "renderLayer", cancellable = true)
 	private void onRenderLayer(CallbackInfo ci) {
 		if (shouldWarnOnRenderLayer) {
@@ -152,6 +133,8 @@ public class MixinWorldRenderer implements WorldRendererExt {
 			shouldWarnOnRenderLayer = false;
 		}
 	}
+
+	private static boolean shouldWarnGetAdjacentChunk = true;
 
 	@Inject(at = @At("HEAD"), method = "getAdjacentChunk", cancellable = true)
 	private void onGetAdjacentChunk(CallbackInfoReturnable<BuiltChunk> ci) {
@@ -162,6 +145,8 @@ public class MixinWorldRenderer implements WorldRendererExt {
 		}
 	}
 
+	private static boolean shouldWarnOnUpdateChunks = true;
+
 	@Inject(at = @At("HEAD"), method = "updateChunks", cancellable = true)
 	private void onUpdateChunks(CallbackInfo ci) {
 		if (shouldWarnOnUpdateChunks) {
@@ -169,6 +154,25 @@ public class MixinWorldRenderer implements WorldRendererExt {
 			ci.cancel();
 			shouldWarnOnUpdateChunks = false;
 		}
+	}
+
+	/**
+	 * @author grondag
+	 * @reason prevent mishap
+	 */
+	@Overwrite
+	private void resetTransparencyShader() {
+		// NOOP
+	}
+
+	/**
+	 * @author grondag
+	 * @reason prevent mishap
+	 */
+	@Overwrite
+	private void loadTransparencyShader() {
+		// Will be called by Worldrenderer.apply() during resource load (and ignored)
+		// NOOP
 	}
 
 	@Override
@@ -182,13 +186,50 @@ public class MixinWorldRenderer implements WorldRendererExt {
 	}
 
 	@Override
+	public void canvas_setupFabulousBuffers() {
+		if (Pipeline.isFabulous()) {
+			translucentFramebuffer = new FabulousFrameBuffer(Pipeline.fabTranslucentFbo, Pipeline.fabTranslucentColor, Pipeline.fabTranslucentDepth);
+			entityFramebuffer = new FabulousFrameBuffer(Pipeline.fabEntityFbo, Pipeline.fabEntityColor, Pipeline.fabEntityDepth);
+			particlesFramebuffer = new FabulousFrameBuffer(Pipeline.fabParticleFbo, Pipeline.fabParticleColor, Pipeline.fabParticleDepth);
+			weatherFramebuffer = new FabulousFrameBuffer(Pipeline.fabWeatherFbo, Pipeline.fabWeatherColor, Pipeline.fabWeatherDepth);
+			cloudsFramebuffer = new FabulousFrameBuffer(Pipeline.fabCloudsFbo, Pipeline.fabCloudsColor, Pipeline.fabCloudsDepth);
+		} else {
+			translucentFramebuffer = null;
+			entityFramebuffer = null;
+			particlesFramebuffer = null;
+			weatherFramebuffer = null;
+			cloudsFramebuffer = null;
+		}
+	}
+
+	@Override
 	public void canvas_reload() {
-		((WorldRenderer) (Object) this).reload();
+		// not used by us
+		//needsTerrainUpdate = true;
+
+		canvas_setupFabulousBuffers();
+
+		if (world != null) {
+			world.reloadColor();
+		}
+
+		cloudsDirty = true;
+		RenderLayers.setFancyGraphicsOrBetter(true);
+		renderDistance = client.options.viewDistance;
+
+		synchronized (noCullingBlockEntities) {
+			noCullingBlockEntities.clear();
+		}
 	}
 
 	@Override
 	public ClientWorld canvas_world() {
 		return world;
+	}
+
+	@Override
+	public void canvas_setWorldNoSideEffects(ClientWorld world) {
+		this.world = world;
 	}
 
 	@Override
@@ -270,10 +311,5 @@ public class MixinWorldRenderer implements WorldRendererExt {
 	@Override
 	public VertexFormat canvas_vertexFormat() {
 		return vertexFormat;
-	}
-
-	@Override
-	public ShaderEffect canvas_transparencyShader() {
-		return transparencyShader;
 	}
 }

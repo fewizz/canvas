@@ -43,6 +43,7 @@ import net.minecraft.client.render.LightmapTextureManager;
 import net.minecraft.client.render.OutlineVertexConsumerProvider;
 import net.minecraft.client.render.OverlayVertexConsumer;
 import net.minecraft.client.render.RenderLayer;
+import net.minecraft.client.render.RenderPhase;
 import net.minecraft.client.render.Tessellator;
 import net.minecraft.client.render.VertexConsumer;
 import net.minecraft.client.render.VertexConsumerProvider;
@@ -76,8 +77,10 @@ import net.minecraft.util.math.Vec3d;
 import net.minecraft.util.profiler.Profiler;
 import net.minecraft.util.registry.Registry;
 
+import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.impl.client.rendering.WorldRenderContextImpl;
+
 import grondag.canvas.CanvasMod;
-import grondag.canvas.Configurator;
 import grondag.canvas.apiimpl.MaterialConditionImpl;
 import grondag.canvas.apiimpl.rendercontext.BlockRenderContext;
 import grondag.canvas.apiimpl.rendercontext.EntityBlockRenderContext;
@@ -85,33 +88,33 @@ import grondag.canvas.buffer.BindStateManager;
 import grondag.canvas.buffer.VboBuffer;
 import grondag.canvas.buffer.encoding.CanvasImmediate;
 import grondag.canvas.compat.FirstPersonModelHolder;
-import grondag.canvas.light.LightmapHdTexture;
+import grondag.canvas.config.Configurator;
 import grondag.canvas.material.property.MaterialFog;
-import grondag.canvas.material.property.MaterialMatrixState;
 import grondag.canvas.material.property.MaterialTarget;
 import grondag.canvas.material.state.RenderContextState;
 import grondag.canvas.material.state.RenderState;
 import grondag.canvas.mixinterface.BufferBuilderStorageExt;
-import grondag.canvas.mixinterface.MatrixStackExt;
 import grondag.canvas.mixinterface.WorldRendererExt;
-import grondag.canvas.shader.MaterialShaderManager;
+import grondag.canvas.pipeline.Pipeline;
+import grondag.canvas.pipeline.PipelineManager;
+import grondag.canvas.shader.GlProgram;
+import grondag.canvas.shader.GlProgramManager;
 import grondag.canvas.terrain.occlusion.PotentiallyVisibleRegionSorter;
 import grondag.canvas.terrain.occlusion.TerrainIterator;
 import grondag.canvas.terrain.occlusion.TerrainOccluder;
 import grondag.canvas.terrain.occlusion.geometry.OcclusionRegion;
 import grondag.canvas.terrain.occlusion.geometry.PackedBox;
+import grondag.canvas.terrain.occlusion.geometry.TerrainBounds;
 import grondag.canvas.terrain.region.BuiltRenderRegion;
 import grondag.canvas.terrain.region.RenderRegionBuilder;
 import grondag.canvas.terrain.region.RenderRegionPruner;
 import grondag.canvas.terrain.region.RenderRegionStorage;
 import grondag.canvas.terrain.render.TerrainLayerRenderer;
-import grondag.canvas.texture.DitherTexture;
 import grondag.canvas.varia.CanvasGlHelper;
+import grondag.canvas.varia.MatrixState;
 import grondag.canvas.varia.WorldDataManager;
 import grondag.fermion.sc.unordered.SimpleUnorderedArrayList;
 import grondag.frex.api.event.WorldRenderEvent;
-import grondag.frex.api.event.WorldRenderEvents;
-import grondag.frex.impl.event.WorldRenderContextImpl;
 
 public class CanvasWorldRenderer extends WorldRenderer {
 	public static final int MAX_REGION_COUNT = (32 * 2 + 1) * (32 * 2 + 1) * 16;
@@ -125,6 +128,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 	private final RenderRegionStorage renderRegionStorage = new RenderRegionStorage(this, pruner);
 	private final TerrainIterator terrainIterator = new TerrainIterator(renderRegionStorage, terrainOccluder, distanceSorter);
 	public final TerrainFrustum terrainFrustum = new TerrainFrustum();
+	public final TerrainBounds bounds = new TerrainBounds();
 
 	/**
 	 * Incremented whenever regions are built so visibility search can progress or to indicate visibility might be changed.
@@ -227,7 +231,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			regionBuilder = new RenderRegionBuilder();
 		}
 
-		DitherTexture.instance().initializeIfNeeded();
+		// DitherTexture.instance().initializeIfNeeded();
 		world = clientWorld;
 		visibleRegionCount = 0;
 		terrainIterator.reset();
@@ -257,16 +261,11 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		final RenderRegionStorage regionStorage = renderRegionStorage;
 		final TerrainIterator terrainIterator = this.terrainIterator;
 
-		if (mc.options.viewDistance != renderDistance) {
-			wr.canvas_reload();
-		}
-
 		regionStorage.closeRegionsOnRenderThread();
 
 		mc.getProfiler().push("camera");
-		WorldDataManager.update(camera);
 		MaterialConditionImpl.update();
-		MaterialShaderManager.INSTANCE.onRenderTick();
+		GlProgramManager.INSTANCE.onRenderTick();
 		final BlockPos cameraBlockPos = camera.getBlockPos();
 		final BuiltRenderRegion cameraRegion = cameraBlockPos.getY() < 0 || cameraBlockPos.getY() > 255 ? null : regionStorage.getOrCreateRegion(cameraBlockPos);
 
@@ -296,6 +295,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 				final int size = terrainIterator.visibleRegionCount;
 				visibleRegionCount = size;
 				System.arraycopy(terrainIterator.visibleRegions, 0, visibleRegions, 0, size);
+				bounds.set(terrainIterator.bounds);
 				assert size == 0 || visibleRegions[0] != null;
 				scheduleOrBuild(terrainIterator.updateRegions);
 				terrainIterator.reset();
@@ -323,6 +323,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 				lastViewVersion = terrainFrustum.viewVersion();
 				visibleRegionCount = size;
 				System.arraycopy(terrainIterator.visibleRegions, 0, visibleRegions, 0, size);
+				bounds.set(terrainIterator.bounds);
 				scheduleOrBuild(terrainIterator.updateRegions);
 				terrainIterator.reset();
 			}
@@ -379,7 +380,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		return result;
 	}
 
-	public void renderWorld(MatrixStack matrixStack, float tickDelta, long frameStartNanos, boolean blockOutlines, Camera camera, GameRenderer gameRenderer, LightmapTextureManager lightmapTextureManager, Matrix4f projectionMatrix) {
+	public void renderWorld(MatrixStack viewMatrixStack, MatrixStack identityStack, float tickDelta, long frameStartNanos, boolean blockOutlines, Camera camera, GameRenderer gameRenderer, LightmapTextureManager lightmapTextureManager, Matrix4f projectionMatrix) {
 		Configurator.lagFinder.swap("WorldRenderer-Setup");
 
 		final WorldRendererExt wr = this.wr;
@@ -389,12 +390,12 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		final BlockRenderContext blockContext = BlockRenderContext.get();
 		final EntityBlockRenderContext entityBlockContext = EntityBlockRenderContext.get();
 		MaterialFog.allow(true);
-
 		updatePlayerLightmap(mc, tickDelta);
+
 		final ClientWorld world = this.world;
 		final BufferBuilderStorage bufferBuilders = wr.canvas_bufferBuilders();
 		final EntityRenderDispatcher entityRenderDispatcher = wr.canvas_entityRenderDispatcher();
-		final boolean advancedTranslucency = wr.canvas_transparencyShader() != null;
+		final boolean advancedTranslucency = Pipeline.isFabulous();
 
 		MinecraftClient.getInstance().method_31975().configure(world, camera, mc.crosshairTarget);
 		entityRenderDispatcher.configure(world, camera, mc.targetedEntity);
@@ -407,33 +408,43 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		Configurator.lagFinder.swap("WorldRenderer-Culling");
 		final Vec3d cameraVec3d = camera.getPos();
 		cameraPos = cameraVec3d;
-
 		final double cameraX = cameraVec3d.getX();
 		final double cameraY = cameraVec3d.getY();
 		final double cameraZ = cameraVec3d.getZ();
-		final Matrix4f modelMatrix = matrixStack.peek().getModel();
-		MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
 
 		profiler.swap("culling");
 
 		final TerrainFrustum frustum = terrainFrustum;
-		frustum.prepare(modelMatrix, tickDelta, camera);
-		particleRenderer.frustum.prepare(modelMatrix, tickDelta, camera, projectionMatrix);
+		frustum.prepare(MatrixState.viewMatrix, tickDelta, camera);
+		particleRenderer.frustum.prepare(MatrixState.viewMatrix, tickDelta, camera, projectionMatrix);
 
 		mc.getProfiler().swap("regions");
 
 		Configurator.lagFinder.swap("WorldRenderer-Background");
 
+		Pipeline.defaultFbo.bind();
+
 		profiler.swap("clear");
+
+		// This does not actually render anything - what it does do is set the current clear color
+		// Color is captured via a mixin for use in shaders
 		BackgroundRenderer.render(camera, tickDelta, mc.world, mc.options.viewDistance, gameRenderer.getSkyDarkness(tickDelta));
-		RenderSystem.clear(16640, MinecraftClient.IS_SYSTEM_MAC);
+
+		if (Pipeline.config().runVanillaClear) {
+			RenderSystem.clear(16640, MinecraftClient.IS_SYSTEM_MAC);
+		}
+
 		final float viewDistance = gameRenderer.getViewDistance();
 		final boolean thickFog = mc.world.getSkyProperties().useThickFog(MathHelper.floor(cameraX), MathHelper.floor(cameraY)) || mc.inGameHud.getBossBarHud().shouldThickenFog();
 
 		if (mc.options.viewDistance >= 4) {
+			// NB: fog / sky renderer really wants it this way
+			RenderSystem.popMatrix();
 			BackgroundRenderer.applyFog(camera, BackgroundRenderer.FogType.FOG_SKY, viewDistance, thickFog);
 			profiler.swap("sky");
-			((WorldRenderer) wr).renderSky(matrixStack, tickDelta);
+			((WorldRenderer) wr).renderSky(viewMatrixStack, tickDelta);
+			RenderSystem.pushMatrix();
+			RenderSystem.multMatrix(MatrixState.viewMatrix);
 		}
 
 		profiler.swap("fog");
@@ -467,32 +478,34 @@ public class CanvasWorldRenderer extends WorldRenderer {
 
 		updateRegions(frameStartNanos + clampedBudget);
 
-		Configurator.lagFinder.swap("WorldRenderer-BloomSetup");
-
-		LightmapHdTexture.instance().onRenderTick();
-
-		if (Configurator.enableBloom) CanvasFrameBufferHacks.prepareForFrame();
+		//LightmapHdTexture.instance().onRenderTick();
 
 		profiler.swap("terrain");
 		Configurator.lagFinder.swap("WorldRenderer-TerrainRenderSolid");
 
-		MaterialMatrixState.set(MaterialMatrixState.REGION, null);
-		renderTerrainLayer(false, matrixStack, cameraX, cameraY, cameraZ);
-		MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
+		MatrixState.set(MatrixState.REGION);
+		// WIP: move this to a prepass - or more accurately defer terrain until after solid entity prepass
+		SkyShadowRenderer.begin();
+		renderTerrainLayer(false, cameraX, cameraY, cameraZ);
+		SkyShadowRenderer.end();
+
+		renderTerrainLayer(false, cameraX, cameraY, cameraZ);
+		MatrixState.set(MatrixState.CAMERA);
 
 		// Note these don't have an effect when canvas pipeline is active - lighting happens in the shader
 		// but they are left intact to handle any fix-function renders we don't catch
 		if (this.world.getSkyProperties().isDarkened()) {
 			// True for nether - yarn names here are not great
 			// Causes lower face to be lit like top face
-			DiffuseLighting.enableForLevel(matrixStack.peek().getModel());
+			DiffuseLighting.enableForLevel(MatrixState.viewMatrix);
 		} else {
-			DiffuseLighting.method_27869(matrixStack.peek().getModel());
+			DiffuseLighting.method_27869(MatrixState.viewMatrix);
 		}
 
 		Configurator.lagFinder.swap("WorldRenderer-EntityRender");
 
 		profiler.swap("entities");
+
 		WorldRenderEvents.BEFORE_ENTITIES.invoker().beforeEntities(eventContext);
 		profiler.push("prepare");
 		int entityCount = 0;
@@ -502,11 +515,11 @@ public class CanvasWorldRenderer extends WorldRenderer {
 
 		if (advancedTranslucency) {
 			final Framebuffer entityFramebuffer = mcwr.getEntityFramebuffer();
-			entityFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+			//entityFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
 			entityFramebuffer.copyDepthFrom(mcfb);
 
-			final Framebuffer weatherFramebuffer = mcwr.getWeatherFramebuffer();
-			weatherFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
+			//final Framebuffer weatherFramebuffer = mcwr.getWeatherFramebuffer();
+			//weatherFramebuffer.clear(MinecraftClient.IS_SYSTEM_MAC);
 		}
 
 		final boolean canDrawEntityOutlines = wr.canvas_canDrawEntityOutlines();
@@ -515,7 +528,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			wr.canvas_entityOutlinesFramebuffer().clear(MinecraftClient.IS_SYSTEM_MAC);
 		}
 
-		mcfb.beginWrite(false);
+		Pipeline.defaultFbo.bind();
 
 		boolean didRenderOutlines = false;
 		final CanvasImmediate immediate = worldRenderImmediate;
@@ -526,12 +539,12 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		entityBlockContext.collectors = immediate.collectors;
 		blockContext.collectors = immediate.collectors;
 
-		final int stackDepth = ((MatrixStackExt) matrixStack).canvas_size();
+		// PERF: find way to reduce allocation for this and MatrixStack generally
 
 		while (entities.hasNext()) {
 			final Entity entity = entities.next();
 			if ((!entityRenderDispatcher.shouldRender(entity, frustum, cameraX, cameraY, cameraZ) && !entity.hasPassengerDeep(mc.player))
-					|| (entity == camera.getFocusedEntity() && !FirstPersonModelHolder.handler.isThirdPerson(this, camera, matrixStack) && (!(camera.getFocusedEntity() instanceof LivingEntity) || !((LivingEntity) camera.getFocusedEntity()).isSleeping()))
+					|| (entity == camera.getFocusedEntity() && !FirstPersonModelHolder.handler.isThirdPerson(this, camera, viewMatrixStack) && (!(camera.getFocusedEntity() instanceof LivingEntity) || !((LivingEntity) camera.getFocusedEntity()).isSleeping()))
 					|| (entity instanceof ClientPlayerEntity && camera.getFocusedEntity() != entity)) {
 				continue;
 			}
@@ -563,7 +576,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			entityBlockContext.setPosAndWorldFromEntity(entity);
 
 			// Item entity translucent typically gets drawn here in vanilla because there's no dedicated buffer for it
-			wr.canvas_renderEntity(entity, cameraX, cameraY, cameraZ, tickDelta, matrixStack, renderProvider);
+			wr.canvas_renderEntity(entity, cameraX, cameraY, cameraZ, tickDelta, identityStack, renderProvider);
 		}
 
 		contextState.setCurrentEntity(null);
@@ -586,15 +599,15 @@ public class CanvasWorldRenderer extends WorldRenderer {
 				VertexConsumerProvider outputConsumer = immediate;
 				contextState.setCurrentBlockEntity(blockEntity);
 
-				matrixStack.push();
-				matrixStack.translate(blockPos.getX() - cameraX, blockPos.getY() - cameraY, blockPos.getZ() - cameraZ);
+				identityStack.push();
+				identityStack.translate(blockPos.getX() - cameraX, blockPos.getY() - cameraY, blockPos.getZ() - cameraZ);
 				final SortedSet<BlockBreakingInfo> sortedSet = wr.canvas_blockBreakingProgressions().get(blockPos.asLong());
 
 				if (sortedSet != null && !sortedSet.isEmpty()) {
 					final int stage = sortedSet.last().getStage();
 
 					if (stage >= 0) {
-						final MatrixStack.Entry xform = matrixStack.peek();
+						final MatrixStack.Entry xform = identityStack.peek();
 						final VertexConsumer overlayConsumer = new OverlayVertexConsumer(bufferBuilders.getEffectVertexConsumers().getBuffer(ModelLoader.BLOCK_DESTRUCTION_RENDER_LAYERS.get(stage)), xform.getModel(), xform.getNormal());
 
 						outputConsumer = (renderLayer) -> {
@@ -604,12 +617,10 @@ public class CanvasWorldRenderer extends WorldRenderer {
 					}
 				}
 
-				renderBlockEntitySafely(blockEntity, tickDelta, matrixStack, outputConsumer);
-				matrixStack.pop();
+				renderBlockEntitySafely(blockEntity, tickDelta, identityStack, outputConsumer);
+				identityStack.pop();
 			}
 		}
-
-		assert ((MatrixStackExt) matrixStack).canvas_size() == stackDepth;
 
 		synchronized (noCullingBlockEntities) {
 			final Iterator<BlockEntity> globalBERs = noCullingBlockEntities.iterator();
@@ -618,16 +629,14 @@ public class CanvasWorldRenderer extends WorldRenderer {
 				final BlockEntity blockEntity2 = globalBERs.next();
 				final BlockPos blockPos2 = blockEntity2.getPos();
 				contextState.setCurrentBlockEntity(blockEntity2);
-				matrixStack.push();
-				matrixStack.translate(blockPos2.getX() - cameraX, blockPos2.getY() - cameraY, blockPos2.getZ() - cameraZ);
-				renderBlockEntitySafely(blockEntity2, tickDelta, matrixStack, immediate);
-				matrixStack.pop();
+				identityStack.push();
+				identityStack.translate(blockPos2.getX() - cameraX, blockPos2.getY() - cameraY, blockPos2.getZ() - cameraZ);
+				renderBlockEntitySafely(blockEntity2, tickDelta, identityStack, immediate);
+				identityStack.pop();
 			}
 		}
 
 		contextState.setCurrentBlockEntity(null);
-
-		assert matrixStack.isEmpty() : "Matrix stack not empty in world render when expected";
 
 		immediate.drawCollectors(MaterialTarget.MAIN);
 
@@ -637,7 +646,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 
 		if (didRenderOutlines) {
 			entityOutlineShader.render(tickDelta);
-			mcfb.beginWrite(false);
+			Pipeline.defaultFbo.bind();
 		}
 
 		Configurator.lagFinder.swap("WorldRenderer-Breaking");
@@ -660,19 +669,17 @@ public class CanvasWorldRenderer extends WorldRenderer {
 
 				if (breakSet != null && !breakSet.isEmpty()) {
 					final int stage = breakSet.last().getStage();
-					matrixStack.push();
-					matrixStack.translate(breakPos.getX() - cameraX, breakPos.getY() - cameraY, breakPos.getZ() - cameraZ);
-					final MatrixStack.Entry xform = matrixStack.peek();
+					identityStack.push();
+					identityStack.translate(breakPos.getX() - cameraX, breakPos.getY() - cameraY, breakPos.getZ() - cameraZ);
+					final MatrixStack.Entry xform = identityStack.peek();
 					final VertexConsumer vertexConsumer2 = new OverlayVertexConsumer(bufferBuilders.getEffectVertexConsumers().getBuffer(ModelLoader.BLOCK_DESTRUCTION_RENDER_LAYERS.get(stage)), xform.getModel(), xform.getNormal());
-					mc.getBlockRenderManager().renderDamage(world.getBlockState(breakPos), breakPos, world, matrixStack, vertexConsumer2);
-					matrixStack.pop();
+					mc.getBlockRenderManager().renderDamage(world.getBlockState(breakPos), breakPos, world, identityStack, vertexConsumer2);
+					identityStack.pop();
 				}
 			}
 		}
 
 		blockContext.collectors = immediate.collectors;
-
-		assert matrixStack.isEmpty() : "Matrix stack not empty in world render when expected";
 
 		profiler.pop();
 		profiler.swap("outline");
@@ -691,23 +698,23 @@ public class CanvasWorldRenderer extends WorldRenderer {
 					eventContext.prepareBlockOutline(blockOutlineConumer, camera.getFocusedEntity(), cameraX, cameraY, cameraZ, blockOutlinePos, blockOutlineState);
 
 					if (WorldRenderEvents.BLOCK_OUTLINE.invoker().onBlockOutline(eventContext, eventContext)) {
-						wr.canvas_drawBlockOutline(matrixStack, blockOutlineConumer, camera.getFocusedEntity(), cameraX, cameraY, cameraZ, blockOutlinePos, blockOutlineState);
+						wr.canvas_drawBlockOutline(identityStack, blockOutlineConumer, camera.getFocusedEntity(), cameraX, cameraY, cameraZ, blockOutlinePos, blockOutlineState);
 					}
 				}
 			}
 		}
 
-		RenderSystem.pushMatrix();
-		RenderSystem.multMatrix(matrixStack.peek().getModel());
+		// NB: view matrix is already applied to GL state before renderWorkd is called
 		WorldRenderEvents.BEFORE_DEBUG_RENDER.invoker().beforeDebugRender(eventContext);
-		mc.debugRenderer.render(matrixStack, immediate, cameraX, cameraY, cameraZ);
-		RenderSystem.popMatrix();
+		// We still pass in the transformed stack because that is what debug renderer normally gets
+		mc.debugRenderer.render(viewMatrixStack, immediate, cameraX, cameraY, cameraZ);
 
 		Configurator.lagFinder.swap("WorldRenderer-SolidDraws");
 
 		// Should generally not have anything here but draw in case content injected in hooks
 		immediate.drawCollectors(MaterialTarget.MAIN);
 
+		// WIP: glint not working again?
 		immediate.draw(RenderLayer.getArmorGlint());
 		immediate.draw(RenderLayer.getArmorEntityGlint());
 		immediate.draw(RenderLayer.getGlint());
@@ -726,9 +733,9 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			profiler.swap("translucent");
 
 			Framebuffer fb = mcwr.getTranslucentFramebuffer();
-			fb.clear(MinecraftClient.IS_SYSTEM_MAC);
 			fb.copyDepthFrom(mcfb);
-			fb.beginWrite(false);
+
+			Pipeline.translucentTerrainFbo.bind();
 
 			// in fabulous mode, the only thing that renders to terrain translucency
 			// is terrain itself - so everything else can be rendered first
@@ -742,28 +749,25 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			// This catches entity layer and any remaining non-main layers
 			immediate.draw();
 
-			MaterialMatrixState.set(MaterialMatrixState.REGION, null);
-			renderTerrainLayer(true, matrixStack, cameraX, cameraY, cameraZ);
-			MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
+			MatrixState.set(MatrixState.REGION);
+			renderTerrainLayer(true, cameraX, cameraY, cameraZ);
+			MatrixState.set(MatrixState.CAMERA);
 
 			// NB: vanilla renders tripwire here but we combine into translucent
 
 			fb = mcwr.getParticlesFramebuffer();
-			fb.clear(MinecraftClient.IS_SYSTEM_MAC);
 			fb.copyDepthFrom(mcfb);
-			fb.beginWrite(false);
+			Pipeline.translucentParticlesFbo.bind();
 
 			profiler.swap("particles");
-			MaterialMatrixState.set(MaterialMatrixState.PARTICLE, null);
-			particleRenderer.renderParticles(mc.particleManager, matrixStack, immediate, lightmapTextureManager, camera, tickDelta);
-			MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
+			particleRenderer.renderParticles(mc.particleManager, identityStack, immediate, lightmapTextureManager, camera, tickDelta);
 
-			mcfb.beginWrite(false);
+			Pipeline.defaultFbo.bind();
 		} else {
 			profiler.swap("translucent");
-			MaterialMatrixState.set(MaterialMatrixState.REGION, null);
-			renderTerrainLayer(true, matrixStack, cameraX, cameraY, cameraZ);
-			MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
+			MatrixState.set(MatrixState.REGION);
+			renderTerrainLayer(true, cameraX, cameraY, cameraZ);
+			MatrixState.set(MatrixState.CAMERA);
 
 			// without fabulous transparency important that lines
 			// and other translucent elements get drawn on top of terrain
@@ -776,50 +780,52 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			immediate.draw();
 
 			profiler.swap("particles");
-			MaterialMatrixState.set(MaterialMatrixState.PARTICLE, null);
-			particleRenderer.renderParticles(mc.particleManager, matrixStack, immediate, lightmapTextureManager, camera, tickDelta);
-			MaterialMatrixState.set(MaterialMatrixState.ENTITY, matrixStack.peek().getNormal());
+			particleRenderer.renderParticles(mc.particleManager, identityStack, immediate, lightmapTextureManager, camera, tickDelta);
 		}
+
+		RenderState.disable();
 
 		WorldRenderEvents.AFTER_TRANSLUCENT.invoker().afterTranslucent(eventContext);
 
-		RenderSystem.pushMatrix();
-		RenderSystem.multMatrix(matrixStack.peek().getModel());
-
-		// WIP: need a new event here for weather/cloud targets that has matrix applies to render state
-		// WIP: move the Mallib world last to the new event when fabulous is on
+		// TODO: need a new event here for weather/cloud targets that has matrix applies to render state
+		// TODO: move the Mallib world last to the new event when fabulous is on
 
 		if (Configurator.debugOcclusionBoxes) {
-			renderCullBoxes(matrixStack, immediate, cameraX, cameraY, cameraZ, tickDelta);
+			renderCullBoxes(identityStack, immediate, cameraX, cameraY, cameraZ, tickDelta);
 		}
 
 		Configurator.lagFinder.swap("WorldRenderer-PostTransluent");
 
 		profiler.swap("clouds");
 
-		if (advancedTranslucency) {
-			// clear the cloud FB even when clouds are off - prevents leftover clouds
-			final Framebuffer fb = mcwr.getCloudsFramebuffer();
-			fb.clear(MinecraftClient.IS_SYSTEM_MAC);
+		RenderState.disable();
+		GlProgram.deactivate();
 
-			if (mc.options.getCloudRenderMode() != CloudRenderMode.OFF) {
-				fb.beginWrite(false);
-				((WorldRenderer) wr).renderClouds(matrixStack, tickDelta, cameraX, cameraY, cameraZ);
-				mcfb.beginWrite(false);
+		// WIP: need to properly target the designated buffer here in both clouds and weather
+		// also need to ensure works with non-fabulous pipelines
+
+		// NB: important to clear the cloud FB even when clouds are off - prevents leftover clouds
+		if (mc.options.getCloudRenderMode() != CloudRenderMode.OFF) {
+			if (advancedTranslucency && getCloudsFramebuffer() != null) {
+				getCloudsFramebuffer().clear(MinecraftClient.IS_SYSTEM_MAC);
 			}
-		} else if (mc.options.getCloudRenderMode() != CloudRenderMode.OFF) {
-			((WorldRenderer) wr).renderClouds(matrixStack, tickDelta, cameraX, cameraY, cameraZ);
+
+			RenderPhase.CLOUDS_TARGET.startDrawing();
+			// NB: vanilla cloud renderer wants/needs the transformed stack even though it is already applied
+			renderClouds(viewMatrixStack, tickDelta, cameraX, cameraY, cameraZ);
+			RenderPhase.CLOUDS_TARGET.endDrawing();
 		}
 
 		profiler.swap("weather");
 
 		if (advancedTranslucency) {
-			final Framebuffer fb = mcwr.getWeatherFramebuffer();
-			fb.beginWrite(false);
+			RenderPhase.WEATHER_TARGET.startDrawing();
 			wr.canvas_renderWeather(lightmapTextureManager, tickDelta, cameraX, cameraY, cameraZ);
 			wr.canvas_renderWorldBorder(camera);
-			wr.canvas_transparencyShader().render(tickDelta);
-			mcfb.beginWrite(false);
+			RenderPhase.WEATHER_TARGET.endDrawing();
+			PipelineManager.beFabulous();
+
+			Pipeline.defaultFbo.bind();
 		} else {
 			RenderSystem.depthMask(false);
 			wr.canvas_renderWeather(lightmapTextureManager, tickDelta, cameraX, cameraY, cameraZ);
@@ -834,7 +840,6 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		RenderSystem.shadeModel(7424);
 		RenderSystem.depthMask(true);
 		RenderSystem.disableBlend();
-		RenderSystem.popMatrix();
 		BackgroundRenderer.method_23792();
 		entityBlockContext.collectors = null;
 		blockContext.collectors = null;
@@ -845,6 +850,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		MaterialFog.allow(false);
 
 		//RenderState.enablePrint = true;
+		assert CanvasGlHelper.checkError();
 
 		Configurator.lagFinder.complete();
 	}
@@ -1001,7 +1007,7 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		mc.getProfiler().pop();
 	}
 
-	private void renderTerrainLayer(boolean isTranslucent, MatrixStack matrixStack, double x, double y, double z) {
+	private void renderTerrainLayer(boolean isTranslucent, double x, double y, double z) {
 		final BuiltRenderRegion[] visibleRegions = this.visibleRegions;
 		final int visibleRegionCount = this.visibleRegionCount;
 
@@ -1010,9 +1016,9 @@ public class CanvasWorldRenderer extends WorldRenderer {
 		}
 
 		if (isTranslucent) {
-			TRANSLUCENT.render(visibleRegions, visibleRegionCount, matrixStack, x, y, z);
+			TRANSLUCENT.render(visibleRegions, visibleRegionCount, x, y, z);
 		} else {
-			SOLID.render(visibleRegions, visibleRegionCount, matrixStack, x, y, z);
+			SOLID.render(visibleRegions, visibleRegionCount, x, y, z);
 		}
 
 		RenderState.disable();
@@ -1022,10 +1028,10 @@ public class CanvasWorldRenderer extends WorldRenderer {
 			CanvasGlHelper.glBindVertexArray(0);
 		}
 
-		if (Configurator.hdLightmaps()) {
-			LightmapHdTexture.instance().disable();
-			DitherTexture.instance().disable();
-		}
+		//if (Configurator.hdLightmaps()) {
+		//	LightmapHdTexture.instance().disable();
+		//	DitherTexture.instance().disable();
+		//}
 
 		VboBuffer.unbind();
 		RenderSystem.clearCurrentColor();
@@ -1175,19 +1181,66 @@ public class CanvasWorldRenderer extends WorldRenderer {
 	}
 
 	@Override
-	public void render(MatrixStack matrices, float tickDelta, long frameStartNanos, boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer, LightmapTextureManager lightmapTextureManager, Matrix4f matrix4f) {
+	public void render(MatrixStack viewMatrixStack, float tickDelta, long frameStartNanos, boolean renderBlockOutline, Camera camera, GameRenderer gameRenderer, LightmapTextureManager lightmapTextureManager, Matrix4f projectionMatrix) {
+		final WorldRendererExt wr = this.wr;
+		final MinecraftClient mc = wr.canvas_mc();
+		final boolean wasFabulous = Pipeline.isFabulous();
+
+		PipelineManager.reloadIfNeeded();
+
+		if (wasFabulous != Pipeline.isFabulous()) {
+			wr.canvas_setupFabulousBuffers();
+		}
+
+		if (mc.options.viewDistance != wr.canvas_renderDistance()) {
+			reload();
+		}
+
 		wr.canvas_mc().getProfiler().swap("dynamic_lighting");
-		eventContext.prepare(this, matrices, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, matrix4f, worldRenderImmediate, wr.canvas_mc().getProfiler(), wr.canvas_transparencyShader() != null, world);
+
+		// All managed draws - including anything targeting vertex consumer - will be transformed in shader
+		// Unmanaged draws that do direct drawing will expect the stack to have the view matrix in it and may
+		// use it either to transform the GL state or to transform vertices.
+		// Transforming vertices would break managed draws, so we use an identity stack and set the
+		// GL state to include the view transform by default.  The GL state will be ignored by managed draws
+		// and managed draws will correctly have no rotation applies.  Direct draws may attempt to transform
+		// the GL state to the view matrix but it will have no effect - it is already applied.
+
+		WorldDataManager.update(camera);
+		MatrixState.update(MatrixState.CAMERA, viewMatrixStack.peek(), projectionMatrix, camera, bounds);
+		RenderSystem.pushMatrix();
+		RenderSystem.multMatrix(MatrixState.viewMatrix);
+
+		final MatrixStack identityStack = new MatrixStack();
+		identityStack.peek().getModel().loadIdentity();
+		identityStack.peek().getNormal().loadIdentity();
+
+		eventContext.prepare(this, identityStack, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, projectionMatrix, worldRenderImmediate, wr.canvas_mc().getProfiler(), MinecraftClient.isFabulousGraphicsOrBetter(), world);
+
 		WorldRenderEvents.START.invoker().onStart(eventContext);
-		WorldRenderEvent.BEFORE_WORLD_RENDER.invoker().beforeWorldRender(matrices, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, matrix4f);
-		renderWorld(matrices, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, matrix4f);
-		WorldRenderEvent.AFTER_WORLD_RENDER.invoker().afterWorldRender(matrices, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, matrix4f);
+		PipelineManager.beforeWorldRender();
+		WorldRenderEvent.BEFORE_WORLD_RENDER.invoker().beforeWorldRender(identityStack, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, projectionMatrix);
+		renderWorld(viewMatrixStack, identityStack, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, projectionMatrix);
+		WorldRenderEvent.AFTER_WORLD_RENDER.invoker().afterWorldRender(identityStack, tickDelta, frameStartNanos, renderBlockOutline, camera, gameRenderer, lightmapTextureManager, projectionMatrix);
 		WorldRenderEvents.END.invoker().onEnd(eventContext);
+
+		RenderSystem.popMatrix();
+		MatrixState.set(MatrixState.SCREEN);
 	}
 
 	@Override
 	public void reload() {
+		PipelineManager.reloadIfNeeded();
+
+		// cause injections to fire but disable all other vanilla logic
+		// by setting world to null temporarily
+		final ClientWorld swapWorld = wr.canvas_world();
+		wr.canvas_setWorldNoSideEffects(null);
 		super.reload();
+		wr.canvas_setWorldNoSideEffects(swapWorld);
+
+		// has the logic from super.reload() that requires private access
+		wr.canvas_reload();
 
 		computeDistances();
 		terrainIterator.reset();

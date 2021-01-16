@@ -17,9 +17,10 @@
 package grondag.canvas.shader;
 
 import grondag.canvas.material.property.MaterialFog;
-import grondag.canvas.material.property.MaterialMatrixState;
 import grondag.canvas.material.state.RenderState;
 import grondag.canvas.texture.SpriteInfoTexture;
+import grondag.canvas.varia.CanvasGlHelper;
+import grondag.canvas.varia.MatrixState;
 
 public final class MaterialShaderImpl {
 	public final int index;
@@ -51,33 +52,33 @@ public final class MaterialShaderImpl {
 		return result;
 	}
 
-	// UGLY: all of this activation stuff is trash code
+	// WIP: all of this activation stuff is trash code
 	// these should probably happen before program activation - change detection should upload as needed
 	private void updateCommonUniforms(RenderState renderState) {
 		program.programInfo.set(vertexShaderIndex, fragmentShaderIndex, renderState.gui ? 1 : 0);
 		program.programInfo.upload();
 
-		program.modelOriginType.set(MaterialMatrixState.getModelOrigin().ordinal());
+		program.modelOriginType.set(MatrixState.getModelOrigin().ordinal());
 		program.modelOriginType.upload();
-
-		program.normalModelMatrix.set(MaterialMatrixState.getNormalModelMatrix());
-		program.normalModelMatrix.upload();
 
 		program.fogMode.set(MaterialFog.shaderParam());
 		program.fogMode.upload();
 	}
 
 	public void setModelOrigin(int x, int y, int z) {
-		getOrCreate().setModelOrigin(x, y, z);
+		getOrCreate().activate();
+		program.setModelOrigin(x, y, z);
 	}
 
 	public void activate(RenderState renderState) {
+		assert CanvasGlHelper.checkError();
 		getOrCreate().activate();
+		assert CanvasGlHelper.checkError();
 		updateCommonUniforms(renderState);
 	}
 
-	public void setAtlasInfo(SpriteInfoTexture atlasInfo) {
-		getOrCreate().setAtlasInfo(atlasInfo);
+	public void setContextInfo(SpriteInfoTexture atlasInfo, int targetIndex) {
+		getOrCreate().setContextInfo(atlasInfo, targetIndex);
 	}
 
 	public void reload() {
@@ -89,18 +90,6 @@ public final class MaterialShaderImpl {
 
 	public int getIndex() {
 		return index;
-	}
-
-	public void onRenderTick() {
-		if (program != null) {
-			program.onRenderTick();
-		}
-	}
-
-	public void onGameTick() {
-		if (program != null) {
-			program.onGameTick();
-		}
 	}
 
 	@Override

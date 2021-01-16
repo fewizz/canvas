@@ -16,6 +16,8 @@
 
 package grondag.canvas.mixinterface;
 
+import java.nio.FloatBuffer;
+
 import net.minecraft.util.math.Vec3f;
 import net.minecraft.util.math.Matrix4f;
 
@@ -171,6 +173,38 @@ public interface Matrix4fExt {
 		a33(b33);
 	}
 
+	// FIX: doesn't seem to work reliably - remove or fix
+	default void invertProjection () {
+		final float inv00 = 1.0f / a00();
+		final float inv11 = 1.0f / a11();
+		final float inv23 = 1.0f / a23();
+		final float inv32 = 1.0f / a32();
+
+		final float m20 = a20();
+		final float m21 = a21();
+		final float m22 = a22();
+
+		a00(inv00);
+		a01(0);
+		a02(0);
+		a03(0);
+
+		a10(0);
+		a11(inv11);
+		a12(0);
+		a13(0);
+
+		a20(0);
+		a21(0);
+		a22(inv32);
+		a23(0);
+
+		a30(-m20 * inv00 * inv23);
+		a31(-m21 * inv11 * inv23);
+		a32(inv23);
+		a33(-m22 * inv23 * inv32);
+	}
+
 	default void scale(float x, float y, float z) {
 		final float b00 = a00() * x;
 		final float b01 = a01() * y;
@@ -197,5 +231,64 @@ public interface Matrix4fExt {
 		a30(b30);
 		a31(b31);
 		a32(b32);
+	}
+
+	void writeToBuffer(int baseIndex, FloatBuffer floatBuffer);
+
+	default void setOrtho(float left, float right, float bottom, float top, float near, float far) {
+		loadIdentity();
+		a00(2.0f / (right - left));
+		a11(2.0f / (top - bottom));
+		a22(2.0f / (near - far));
+		a03((right + left) / (left - right));
+		a13((top + bottom) / (bottom - top));
+		a23((far + near) / (near - far));
+	}
+
+	default void lookAt(
+		float fromX, float fromY, float fromZ,
+		float toX, float toY, float toZ,
+		float basisX, float basisY, float basisZ
+	) {
+		float viewX, viewY, viewZ;
+		viewX = fromX - toX;
+		viewY = fromY - toY;
+		viewZ = fromZ - toZ;
+
+		final float inverseViewLength = 1.0f / (float) Math.sqrt(viewX * viewX + viewY * viewY + viewZ * viewZ);
+		viewX *= inverseViewLength;
+		viewY *= inverseViewLength;
+		viewZ *= inverseViewLength;
+
+		float aX, aY, aZ;
+		aX = basisY * viewZ - basisZ * viewY;
+		aY = basisZ * viewX - basisX * viewZ;
+		aZ = basisX * viewY - basisY * viewX;
+
+		final float inverseLengthA = 1.0f / (float) Math.sqrt(aX * aX + aY * aY + aZ * aZ);
+		aX *= inverseLengthA;
+		aY *= inverseLengthA;
+		aZ *= inverseLengthA;
+
+		final float bX = viewY * aZ - viewZ * aY;
+		final float bY = viewZ * aX - viewX * aZ;
+		final float bZ = viewX * aY - viewY * aX;
+
+		a00(aX);
+		a10(bX);
+		a20(viewX);
+		a30(0.0f);
+		a01(aY);
+		a11(bY);
+		a21(viewY);
+		a21(0.0f);
+		a02(aZ);
+		a12(bZ);
+		a22(viewZ);
+		a32(0.0f);
+		a03(-(aX * fromX + aY * fromY + aZ * fromZ));
+		a13(-(bX * fromX + bY * fromY + bZ * fromZ));
+		a23(-(viewX * fromX + viewY * fromY + viewZ * fromZ));
+		a33(1.0f);
 	}
 }

@@ -1,11 +1,18 @@
+#include frex:shaders/api/context.glsl
 #include frex:shaders/lib/bitwise.glsl
+#include canvas:shaders/internal/world.glsl
 #include canvas:shaders/internal/vertex.glsl
-#include frex:shaders/api/sampler.glsl
-#include frex:shaders/api/world.glsl
 
 /******************************************************
   canvas:shaders/internal/program.glsl
 ******************************************************/
+
+#define _CV_SPRITE_INFO_TEXTURE_SIZE 0
+#define _CV_ATLAS_WIDTH 1
+#define _CV_ATLAS_HEIGHT 2
+#define _CV_TARGET_INDEX 3
+
+uniform int[4] _cvu_context;
 
 #define _CV_MATERIAL_INFO_TEXTURE_SIZE 0
 #define _CV_MAX_SHADER_COUNT 0
@@ -30,6 +37,8 @@ bool _cv_programDiscard() {
 }
 
 #else
+
+uniform sampler2D _cvu_materialInfo;
 
 flat varying ivec4 _cvu_program;
 
@@ -61,9 +70,9 @@ void _cv_setupProgram() {
 	float x = materialIndex - (y * _CV_MATERIAL_INFO_TEXTURE_SIZE);
 	vec2 coord = vec2(x, y);
 
-	vec4 raw = texture2DLod(frxs_materialInfo, (coord + 0.5) / _CV_MATERIAL_INFO_TEXTURE_SIZE, 0);
+	vec4 raw = texture2DLod(_cvu_materialInfo, (coord + 0.5) / _CV_MATERIAL_INFO_TEXTURE_SIZE, 0);
 	_cvu_program = ivec4(raw * vec4(_CV_MAX_SHADER_COUNT, _CV_MAX_SHADER_COUNT, 1.0, 1.0));
-	_cvu_program.w = frx_testCondition(_cvu_program.w) ? 1 : 0;
+	_cvu_program.w = _cv_testCondition(_cvu_program.w) ? 1 : 0;
 #endif
 }
 #endif

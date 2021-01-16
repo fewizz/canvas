@@ -22,8 +22,8 @@ import net.minecraft.client.texture.SpriteAtlasTexture;
 
 import net.fabricmc.fabric.api.renderer.v1.material.BlendMode;
 
-import grondag.canvas.Configurator;
 import grondag.canvas.apiimpl.MaterialConditionImpl;
+import grondag.canvas.config.Configurator;
 import grondag.canvas.material.property.MaterialDecal;
 import grondag.canvas.material.property.MaterialDepthTest;
 import grondag.canvas.material.property.MaterialFog;
@@ -250,7 +250,7 @@ abstract class AbstractRenderStateView {
 
 		long defaultBits = 0; //PRIMITIVE.setValue(GL11.GL_QUADS, 0);
 
-		defaultBits = SHADER_ID.setValue(MaterialShaderId.find(ShaderData.DEFAULT_VERTEX_SOURCE, ShaderData.DEFAULT_FRAGMENT_SOURCE).index, defaultBits);
+		defaultBits = SHADER_ID.setValue(MaterialShaderId.find(ShaderData.DEFAULT_VERTEX_SOURCE, ShaderData.DEFAULT_FRAGMENT_SOURCE, ShaderData.DEFAULT_VERTEX_SOURCE, ShaderData.DEFAULT_FRAGMENT_SOURCE).index, defaultBits);
 		defaultBits = BLENDMODE.setValue(BlendMode.DEFAULT, defaultBits);
 		defaultBits = CULL.setValue(true, defaultBits);
 		defaultBits = DEPTH_TEST.setValue(MaterialFinder.DEPTH_TEST_LEQUAL, defaultBits);
